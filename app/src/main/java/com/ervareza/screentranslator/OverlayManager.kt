@@ -24,36 +24,46 @@ class OverlayManager(private val context: Context) {
         handler.post {
             val textView = TextView(context).apply {
                 text = translatedText
-                setTextColor(Color.BLACK)
-                textSize = 14f
+                setTextColor(Color.parseColor(config.bubbleTextColor))
+                textSize = config.overlayTextSize.toFloat()
                 gravity = Gravity.CENTER
-                setPadding(16, 16, 16, 16)
+                val pad = (8 * context.resources.displayMetrics.density).toInt()
+                setPadding(pad, pad, pad, pad)
             }
 
-            // Rounded Corners Background matching config opacity
+            // Build background drawable from config
+            val alpha = config.overlayOpacity
+            val bgColor = Color.parseColor(config.bubbleBgColor)
             val bgDrawable = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = 24f // rounded corners for bubble
-                
-                // Opacity is 0-255
-                val alpha = config.overlayOpacity
-                setColor(Color.argb(alpha, 255, 255, 255))
-                setStroke(2, Color.argb(alpha, 0, 0, 0)) // thin border
+                cornerRadius = config.bubbleCornerRadius * context.resources.displayMetrics.density
+
+                setColor(Color.argb(
+                    alpha,
+                    Color.red(bgColor),
+                    Color.green(bgColor),
+                    Color.blue(bgColor)
+                ))
+
+                if (config.bubbleBorderEnabled) {
+                    val borderColor = Color.parseColor(config.bubbleTextColor)
+                    setStroke(2, Color.argb(alpha, Color.red(borderColor), Color.green(borderColor), Color.blue(borderColor)))
+                }
             }
             textView.background = bgDrawable
 
-            // Calculate Position
+            // Calculate position based on placement mode
             var xPos = boundingBox.left
             var yPos = boundingBox.top
-            
+
             when (config.placementMode) {
                 "left" -> xPos = (boundingBox.left - boundingBox.width()).coerceAtLeast(0)
                 "right" -> xPos = boundingBox.right
-                // "direct" uses original boundingBox.left
+                // "direct" uses original boundingBox position
             }
 
             val params = WindowManager.LayoutParams(
-                boundingBox.width().coerceAtLeast(200), // min width
+                boundingBox.width().coerceAtLeast(200),
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
@@ -64,7 +74,7 @@ class OverlayManager(private val context: Context) {
                 y = yPos
             }
 
-            // Make it Draggable!
+            // Draggable touch handling
             var initialX = 0
             var initialY = 0
             var initialTouchX = 0f
@@ -91,6 +101,17 @@ class OverlayManager(private val context: Context) {
 
             windowManager.addView(textView, params)
             activeViews.add(textView)
+
+            // Auto-clear if configured
+            val autoClear = config.autoClearSeconds
+            if (autoClear > 0) {
+                handler.postDelayed({
+                    try {
+                        windowManager.removeView(textView)
+                        activeViews.remove(textView)
+                    } catch (_: Exception) {}
+                }, autoClear * 1000L)
+            }
         }
     }
 
@@ -99,7 +120,7 @@ class OverlayManager(private val context: Context) {
             for (view in activeViews) {
                 try {
                     windowManager.removeView(view)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // view already removed
                 }
             }
