@@ -8,6 +8,8 @@ import androidx.appcompat.app.AppCompatActivity
 
 class SplashActivity : AppCompatActivity() {
 
+    private var navigated = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_splash)
@@ -16,17 +18,20 @@ class SplashActivity : AppCompatActivity() {
         val videoUri = Uri.parse("android.resource://$packageName/${R.raw.splash_video}")
         videoView.setVideoURI(videoUri)
 
-        videoView.setOnCompletionListener {
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
-        }
+        videoView.setOnCompletionListener { goToMain() }
+        videoView.setOnErrorListener { _, _, _ -> goToMain(); true }
 
-        videoView.setOnErrorListener { _, _, _ ->
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
-            true
-        }
+        // ISSUE-009 FIX: Tap anywhere to skip splash
+        videoView.setOnClickListener { goToMain() }
 
         videoView.start()
+    }
+
+    private fun goToMain() {
+        if (!navigated) {
+            navigated = true
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+        }
     }
 }

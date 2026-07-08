@@ -13,8 +13,9 @@ class InactivityAccessibilityService : AccessibilityService() {
     
     private val triggerTranslationRunnable = Runnable {
         Log.d("Translator", "Inactivity detected. Triggering translation...")
-        // Broadcast to ScreenCaptureService
+        // Explicit broadcast with package name so it reaches RECEIVER_NOT_EXPORTED
         val intent = Intent("com.ervareza.screentranslator.TRIGGER_CAPTURE")
+        intent.setPackage("com.ervareza.screentranslator")
         sendBroadcast(intent)
     }
 

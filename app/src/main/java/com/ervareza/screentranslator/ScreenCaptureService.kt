@@ -40,6 +40,7 @@ class ScreenCaptureService : Service() {
         super.onCreate()
         createNotificationChannel()
         startForeground(1, NotificationCompat.Builder(this, "ScreenTranslatorChannel")
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Screen Translator Active")
             .setContentText("Monitoring screen for translations...")
             .build())
@@ -140,6 +141,7 @@ class ScreenCaptureService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(captureReceiver)
+        translationEngine.close()
         virtualDisplay?.release()
         mediaProjection?.stop()
         imageReader?.close()

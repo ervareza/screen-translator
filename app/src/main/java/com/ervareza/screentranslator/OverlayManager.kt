@@ -12,13 +12,20 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
+import java.util.concurrent.CopyOnWriteArrayList
 
 class OverlayManager(private val context: Context) {
 
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val config = ConfigManager(context)
     private val handler = Handler(Looper.getMainLooper())
-    private val activeViews = mutableListOf<View>()
+
+    // ISSUE-005 FIX: Thread-safe list to prevent ConcurrentModificationException
+    private val activeViews = CopyOnWriteArrayList<View>()
+
+    private fun dpToPx(dp: Int): Int {
+        return (dp * context.resources.displayMetrics.density).toInt()
+    }
 
     fun drawTranslationBubble(translatedText: String, boundingBox: Rect) {
         handler.post {
@@ -27,16 +34,15 @@ class OverlayManager(private val context: Context) {
                 setTextColor(Color.parseColor(config.bubbleTextColor))
                 textSize = config.overlayTextSize.toFloat()
                 gravity = Gravity.CENTER
-                val pad = (8 * context.resources.displayMetrics.density).toInt()
+                val pad = dpToPx(8)
                 setPadding(pad, pad, pad, pad)
             }
 
-            // Build background drawable from config
             val alpha = config.overlayOpacity
             val bgColor = Color.parseColor(config.bubbleBgColor)
             val bgDrawable = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = config.bubbleCornerRadius * context.resources.displayMetrics.density
+                cornerRadius = dpToPx(config.bubbleCornerRadius).toFloat()
 
                 setColor(Color.argb(
                     alpha,
@@ -52,18 +58,18 @@ class OverlayManager(private val context: Context) {
             }
             textView.background = bgDrawable
 
-            // Calculate position based on placement mode
             var xPos = boundingBox.left
             var yPos = boundingBox.top
 
             when (config.placementMode) {
                 "left" -> xPos = (boundingBox.left - boundingBox.width()).coerceAtLeast(0)
                 "right" -> xPos = boundingBox.right
-                // "direct" uses original boundingBox position
             }
 
+            // ISSUE-007 FIX: Use dp-based minimum width instead of raw pixels
+            val minWidthPx = dpToPx(100)
             val params = WindowManager.LayoutParams(
-                boundingBox.width().coerceAtLeast(200),
+                boundingBox.width().coerceAtLeast(minWidthPx),
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
@@ -74,7 +80,6 @@ class OverlayManager(private val context: Context) {
                 y = yPos
             }
 
-            // Draggable touch handling
             var initialX = 0
             var initialY = 0
             var initialTouchX = 0f
@@ -102,7 +107,6 @@ class OverlayManager(private val context: Context) {
             windowManager.addView(textView, params)
             activeViews.add(textView)
 
-            // Auto-clear if configured
             val autoClear = config.autoClearSeconds
             if (autoClear > 0) {
                 handler.postDelayed({
@@ -120,9 +124,7 @@ class OverlayManager(private val context: Context) {
             for (view in activeViews) {
                 try {
                     windowManager.removeView(view)
-                } catch (_: Exception) {
-                    // view already removed
-                }
+                } catch (_: Exception) {}
             }
             activeViews.clear()
         }
