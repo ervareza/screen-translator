@@ -45,6 +45,12 @@ class InactivityAccessibilityService : AccessibilityService() {
 
         if (event?.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
             event?.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            
+            // Clear current overlays immediately upon movement
+            val clearIntent = Intent("com.ervareza.screentranslator.CLEAR_OVERLAY")
+            clearIntent.setPackage("com.ervareza.screentranslator")
+            sendBroadcast(clearIntent)
+            
             resetTimer()
         }
     }

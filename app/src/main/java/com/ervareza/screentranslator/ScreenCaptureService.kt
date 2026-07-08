@@ -32,7 +32,11 @@ class ScreenCaptureService : Service() {
 
     private val captureReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            captureScreen()
+            if (intent?.action == "com.ervareza.screentranslator.CLEAR_OVERLAY") {
+                translationEngine.clearOverlays()
+            } else {
+                captureScreen()
+            }
         }
     }
 
@@ -42,7 +46,10 @@ class ScreenCaptureService : Service() {
         translationEngine = TranslationEngine(this)
         
         // Register broadcast receiver for the Accessibility Service trigger
-        val filter = IntentFilter("com.ervareza.screentranslator.TRIGGER_CAPTURE")
+        val filter = IntentFilter().apply {
+            addAction("com.ervareza.screentranslator.TRIGGER_CAPTURE")
+            addAction("com.ervareza.screentranslator.CLEAR_OVERLAY")
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(captureReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {

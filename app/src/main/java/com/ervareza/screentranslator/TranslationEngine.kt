@@ -133,4 +133,8 @@ class TranslationEngine(private val context: Context) {
         translatorCache.clear()
         overlayManager.clearOverlays()
     }
+    
+    fun clearOverlays() {
+        overlayManager.clearOverlays()
+    }
 }

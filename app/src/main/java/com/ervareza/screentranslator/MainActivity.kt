@@ -37,6 +37,13 @@ import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.google.mlkit.common.model.DownloadConditions
+import com.google.mlkit.common.model.RemoteModelManager
+import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.TranslateRemoteModel
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import androidx.core.app.NotificationCompat
 
 class MainActivity : AppCompatActivity() {
 
@@ -133,7 +140,22 @@ class MainActivity : AppCompatActivity() {
         if (isServiceRunning(ScreenCaptureService::class.java)) {
             fabStart.text = "Service Running"
             fabStart.setIconResource(android.R.drawable.ic_media_pause)
-            fabStart.isEnabled = false
+            fabStart.isEnabled = true
+            fabStart.setOnClickListener {
+                val stopBroadcast = Intent("com.ervareza.screentranslator.SERVICE_STOPPED")
+                stopBroadcast.setPackage(packageName)
+                sendBroadcast(stopBroadcast)
+                
+                val stopIntent = Intent(this, ScreenCaptureService::class.java).apply {
+                    action = "ACTION_STOP"
+                }
+                startService(stopIntent)
+            }
+        } else {
+            fabStart.text = "Start Service"
+            fabStart.setIconResource(android.R.drawable.ic_media_play)
+            fabStart.isEnabled = true
+            fabStart.setOnClickListener { setupPermissionsAndStart() }
         }
     }
 
@@ -343,14 +365,26 @@ class MainActivity : AppCompatActivity() {
         checkModelStatuses()
     }
 
+    private val translateModelCodes = mapOf(
+        "ja" to TranslateLanguage.JAPANESE,
+        "ko" to TranslateLanguage.KOREAN,
+        "zh" to TranslateLanguage.CHINESE,
+        "hi" to TranslateLanguage.HINDI,
+        "en" to TranslateLanguage.ENGLISH
+    )
+
     private fun checkModelStatuses() {
-        val client = ModuleInstall.getClient(this)
-        for ((code, recognizer) in recognizers) {
-            client.areModulesAvailable(recognizer).addOnSuccessListener { response ->
-                val installed = response.areModulesAvailable()
-                config.setModelInstalled(code, installed)
-                updateModelStatusUI(code, installed)
-            }.addOnFailureListener {
+        val modelManager = RemoteModelManager.getInstance()
+        modelManager.getDownloadedModels(TranslateRemoteModel::class.java).addOnSuccessListener { models ->
+            val downloadedTags = models.map { it.language }
+            
+            for ((code, langTag) in translateModelCodes) {
+                val isInstalled = downloadedTags.contains(langTag)
+                config.setModelInstalled(code, isInstalled)
+                updateModelStatusUI(code, isInstalled)
+            }
+        }.addOnFailureListener {
+            for (code in translateModelCodes.keys) {
                 config.setModelInstalled(code, false)
                 statusViews[code]?.text = "Error"
             }
@@ -366,44 +400,54 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun downloadAllMissingModels() {
-        val client = ModuleInstall.getClient(this)
-        Snackbar.make(fabStart, "Downloading missing models...", Snackbar.LENGTH_LONG).show()
+        val modelManager = RemoteModelManager.getInstance()
+        val conditions = DownloadConditions.Builder().build()
+        
+        Snackbar.make(fabStart, "Downloading missing translation models...", Snackbar.LENGTH_LONG).show()
 
-        for ((code, recognizer) in recognizers) {
-            client.areModulesAvailable(recognizer).addOnSuccessListener { response ->
-                if (!response.areModulesAvailable()) {
-                    statusViews[code]?.text = "Downloading..."
-                    statusViews[code]?.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channelId = "ModelDownloadChannel"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(channelId, "Model Downloads", NotificationManager.IMPORTANCE_LOW)
+            notificationManager.createNotificationChannel(channel)
+        }
 
-                    val listener = InstallStatusListener { update ->
-                        val progress = update.progressInfo
-                        if (progress != null && progress.totalBytesToDownload > 0) {
-                            val pct = (progress.bytesDownloaded * 100 / progress.totalBytesToDownload).toInt()
-                            runOnUiThread { statusViews[code]?.text = "Downloading $pct%" }
-                        }
-                        if (update.installState == ModuleInstallStatusUpdate.InstallState.STATE_COMPLETED) {
-                            runOnUiThread {
-                                config.setModelInstalled(code, true)
-                                updateModelStatusUI(code, true)
-                            }
-                        }
+        for ((code, langTag) in translateModelCodes) {
+            if (!config.isModelInstalled(code)) {
+                statusViews[code]?.text = "Downloading..."
+                statusViews[code]?.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
+                
+                val notificationId = 200 + code.hashCode()
+                val notificationBuilder = NotificationCompat.Builder(this, channelId)
+                    .setSmallIcon(android.R.drawable.stat_sys_download)
+                    .setContentTitle("Downloading ${langNames[code]} Translation Model")
+                    .setProgress(0, 0, true)
+                    .setOngoing(true)
+                
+                notificationManager.notify(notificationId, notificationBuilder.build())
+
+                val model = TranslateRemoteModel.Builder(langTag).build()
+                modelManager.download(model, conditions)
+                    .addOnSuccessListener {
+                        config.setModelInstalled(code, true)
+                        updateModelStatusUI(code, true)
+                        
+                        notificationBuilder.setContentText("Download complete")
+                            .setProgress(0, 0, false)
+                            .setOngoing(false)
+                            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                        notificationManager.notify(notificationId, notificationBuilder.build())
                     }
-
-                    val request = ModuleInstallRequest.newBuilder()
-                        .addApi(recognizer)
-                        .setListener(listener)
-                        .build()
-
-                    client.installModules(request).addOnSuccessListener { installResponse ->
-                        if (installResponse.areModulesAlreadyInstalled()) {
-                            config.setModelInstalled(code, true)
-                            updateModelStatusUI(code, true)
-                        }
-                    }.addOnFailureListener {
+                    .addOnFailureListener {
                         statusViews[code]?.text = "Failed"
                         statusViews[code]?.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
+                        
+                        notificationBuilder.setContentText("Download failed")
+                            .setProgress(0, 0, false)
+                            .setOngoing(false)
+                            .setSmallIcon(android.R.drawable.stat_notify_error)
+                        notificationManager.notify(notificationId, notificationBuilder.build())
                     }
-                }
             }
         }
     }
