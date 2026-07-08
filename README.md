@@ -4,7 +4,7 @@
 
   <img src="https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" />
   <img src="https://img.shields.io/badge/Kotlin-0095D5?&style=for-the-badge&logo=kotlin&logoColor=white" />
-  <img src="https://img.shields.io/badge/Google_ML_Kit-4285F4?style=for-the-badge&logo=google&logoColor=white" />
+  <img src="https://img.shields.io/badge/Google_Play_Services-4285F4?style=for-the-badge&logo=googleplay&logoColor=white" />
   <img src="https://img.shields.io/github/license/ervareza/screen-translator?style=for-the-badge" />
 </div>
 
@@ -16,11 +16,13 @@ No more manually cropping screenshots or switching apps! Just read, pause, and l
 
 ## 🌟 Key Features
 
+*   **⚡ Thin APK Architecture**: By leveraging Google Play Services, the initial app download size is drastically reduced (from 100MB+ down to just a few megabytes).
+*   **📥 Smart AI Download Manager**: Language models are downloaded on-demand in the background. You only download the languages you read!
+*   **🤖 Smart Auto-Detect**: The engine intelligently falls back through your *installed* OCR models without wasting battery or data on uninstalled languages.
+*   **🎨 Material Design 3**: A gorgeous, modern UI featuring a seamless Light, Dark, and System theme switcher.
 *   **⏳ Smart Inactivity Sensor**: Translates the screen automatically if you don't scroll or touch the screen for a specific duration (default: 3 seconds).
-*   **🧠 Triple-AI Auto-Language Detection**: Concurrently runs Japanese, Korean, and Chinese Text Recognition (OCR) engines, and uses AI Language Identification to automatically determine the source language.
-*   **🫧 Dynamic Bubble Overlay**: Translations aren't just rigid boxes. They feature rounded corners mapped directly over the original text bubbles.
+*   **🫧 Dynamic Bubble Overlay**: Translations feature rounded corners mapped directly over the original text bubbles.
 *   **👆 Draggable UI**: If a translation bubble covers a character's face, simply touch and drag it out of the way!
-*   **🎛️ Full Customization**: Adjust the inactivity delay, overlay opacity, and placement mode directly from the app's settings.
 *   **🔒 100% On-Device & Offline**: Uses Google ML Kit's on-device models. Fast, private, and requires no internet connection once the models are downloaded.
 
 ## 🛠️ Technology Stack
@@ -29,9 +31,9 @@ No more manually cropping screenshots or switching apps! Just read, pause, and l
 *   **Build System**: Gradle Kotlin DSL (`.kts`)
 *   **Screen Capture**: `MediaProjection` API (Foreground Service)
 *   **User Tracking**: `AccessibilityService` (Monitors `TYPE_VIEW_SCROLLED`)
-*   **AI Engine**: [Google ML Kit](https://developers.google.com/ml-kit)
-    *   Text Recognition (v2) for Japanese, Korean, Chinese, and Latin scripts.
-    *   Language Identification.
+*   **AI Engine**: [Google ML Kit via Play Services](https://developers.google.com/ml-kit)
+    *   Text Recognition (v2) for Japanese, Korean, Chinese, Devanagari, and Latin scripts.
+    *   ModuleInstall API for on-demand model delivery.
     *   On-Device Translation.
 
 ## 🚀 How to Install and Run
