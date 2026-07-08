@@ -10,6 +10,10 @@ class ConfigManager(context: Context) {
         get() = prefs.getLong("inactivityDelayMs", 3000L) // default 3 seconds
         set(value) = prefs.edit().putLong("inactivityDelayMs", value).apply()
 
+    var appTheme: Int
+        get() = prefs.getInt("appTheme", androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+        set(value) = prefs.edit().putInt("appTheme", value).apply()
+
     var targetLanguage: String
         get() = prefs.getString("targetLanguage", "id") ?: "id" // default Indonesian
         set(value) = prefs.edit().putString("targetLanguage", value).apply()

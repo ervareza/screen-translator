@@ -1,18 +1,22 @@
 package com.ervareza.screentranslator
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import android.widget.Button
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.button.MaterialButtonToggleGroup
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+import com.google.android.material.slider.Slider
 import com.google.android.gms.common.moduleinstall.ModuleInstall
 import com.google.android.gms.common.moduleinstall.ModuleInstallRequest
 import com.google.mlkit.vision.text.TextRecognition
@@ -22,7 +26,7 @@ import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 
-class MainActivity : Activity() {
+class MainActivity : AppCompatActivity() {
 
     private lateinit var config: ConfigManager
     private val SCREEN_CAPTURE_REQUEST_CODE = 1001
@@ -42,195 +46,175 @@ class MainActivity : Activity() {
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
         config = ConfigManager(this)
+        AppCompatDelegate.setDefaultNightMode(config.appTheme)
+        
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-        val scrollView = ScrollView(this)
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
+        setupThemeToggle()
+        setupDelaySlider()
+        setupSourceLanguageSpinner()
+        setupTargetLanguageSpinner()
+        setupAIModelsManager()
+        setupPermissionsAndStart()
+    }
+
+    private fun setupThemeToggle() {
+        val toggleGroup = findViewById<MaterialButtonToggleGroup>(R.id.themeToggleGroup)
+        when (config.appTheme) {
+            AppCompatDelegate.MODE_NIGHT_NO -> toggleGroup.check(R.id.btnThemeLight)
+            AppCompatDelegate.MODE_NIGHT_YES -> toggleGroup.check(R.id.btnThemeDark)
+            else -> toggleGroup.check(R.id.btnThemeSystem)
         }
-        scrollView.addView(layout)
 
-        // Title
-        layout.addView(TextView(this).apply {
-            text = "Screen Translator Settings"
-            textSize = 24f
-            setPadding(0, 0, 0, 32)
-        })
-
-        // Delay Slider
-        val delayLabel = TextView(this).apply { text = "Inactivity Delay: ${config.inactivityDelayMs / 1000}s" }
-        val delaySlider = SeekBar(this).apply {
-            max = 10
-            progress = (config.inactivityDelayMs / 1000).toInt()
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    val p = if (progress == 0) 1 else progress
-                    delayLabel.text = "Inactivity Delay: ${p}s"
-                    config.inactivityDelayMs = p * 1000L
+        toggleGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                val mode = when (checkedId) {
+                    R.id.btnThemeLight -> AppCompatDelegate.MODE_NIGHT_NO
+                    R.id.btnThemeDark -> AppCompatDelegate.MODE_NIGHT_YES
+                    else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
                 }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-            })
+                if (config.appTheme != mode) {
+                    config.appTheme = mode
+                    AppCompatDelegate.setDefaultNightMode(mode)
+                }
+            }
         }
-        layout.addView(delayLabel)
-        layout.addView(delaySlider)
+    }
 
-        // Source Language Spinner (OCR Model)
-        val sourceLangLabel = TextView(this).apply { 
-            text = "Source Language (Comic Language):" 
-            setPadding(0, 32, 0, 8)
+    private fun setupDelaySlider() {
+        val tvDelayLabel = findViewById<TextView>(R.id.tvDelayLabel)
+        val sliderDelay = findViewById<Slider>(R.id.sliderDelay)
+        
+        val currentSeconds = (config.inactivityDelayMs / 1000).toFloat()
+        sliderDelay.value = if (currentSeconds < 1f) 1f else currentSeconds
+        tvDelayLabel.text = "Inactivity Delay: ${sliderDelay.value.toInt()}s"
+
+        sliderDelay.addOnChangeListener { _, value, _ ->
+            tvDelayLabel.text = "Inactivity Delay: ${value.toInt()}s"
+            config.inactivityDelayMs = value.toLong() * 1000L
         }
-        layout.addView(sourceLangLabel)
+    }
 
-        val sourceSpinner = android.widget.Spinner(this)
+    private fun setupSourceLanguageSpinner() {
+        val spinner = findViewById<AutoCompleteTextView>(R.id.spinnerSourceLanguage)
         val sourceCodes = listOf("auto", "ja", "ko", "zh", "hi", "en")
-        val sourceDisplayNames = listOf("🤖 Auto-Detect (Installed Only)", "Japanese", "Korean", "Chinese", "Devanagari", "Latin/English")
+        val sourceDisplayNames = listOf("Auto-Detect (Installed Only)", "Japanese", "Korean", "Chinese", "Devanagari", "Latin/English")
 
-        val sourceAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, sourceDisplayNames)
-        sourceAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        sourceSpinner.adapter = sourceAdapter
+        val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, sourceDisplayNames)
+        spinner.setAdapter(adapter)
 
         val currentSourceIndex = sourceCodes.indexOf(config.sourceLanguage)
-        if (currentSourceIndex >= 0) sourceSpinner.setSelection(currentSourceIndex)
-
-        sourceSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-                config.sourceLanguage = sourceCodes[position]
-            }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        if (currentSourceIndex >= 0) {
+            spinner.setText(sourceDisplayNames[currentSourceIndex], false)
+        } else {
+            spinner.setText(sourceDisplayNames[0], false)
         }
-        layout.addView(sourceSpinner)
 
-        // Target Language Spinner
-        val targetLangLabel = TextView(this).apply { 
-            text = "Target Language:" 
-            setPadding(0, 32, 0, 8)
+        spinner.setOnItemClickListener { _, _, position, _ ->
+            config.sourceLanguage = sourceCodes[position]
         }
-        layout.addView(targetLangLabel)
+    }
 
-        val spinner = android.widget.Spinner(this)
+    private fun setupTargetLanguageSpinner() {
+        val spinner = findViewById<AutoCompleteTextView>(R.id.spinnerTargetLanguage)
         val targetLangCodes = com.google.mlkit.nl.translate.TranslateLanguage.getAllLanguages()
         val targetLangNames = targetLangCodes.map { java.util.Locale(it).displayLanguage }
 
-        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, targetLangNames)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinner.adapter = adapter
+        val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, targetLangNames)
+        spinner.setAdapter(adapter)
 
         val currentIndex = targetLangCodes.indexOf(config.targetLanguage)
-        if (currentIndex >= 0) spinner.setSelection(currentIndex)
-
-        spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-                config.targetLanguage = targetLangCodes[position]
-            }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        if (currentIndex >= 0) {
+            spinner.setText(targetLangNames[currentIndex], false)
+        } else {
+            spinner.setText("Indonesian", false)
         }
-        layout.addView(spinner)
-        
-        // AI Models Manager Section
-        layout.addView(TextView(this).apply {
-            text = "AI Models Manager (OCR)"
-            textSize = 20f
-            setPadding(0, 48, 0, 16)
-        })
 
-        val statusViews = mutableMapOf<String, TextView>()
+        spinner.setOnItemClickListener { _, _, position, _ ->
+            config.targetLanguage = targetLangCodes[position]
+        }
+    }
+
+    private val statusViews = mutableMapOf<String, TextView>()
+
+    private fun setupAIModelsManager() {
+        val layoutModelsContainer = findViewById<LinearLayout>(R.id.layoutModelsContainer)
+        val btnDownloadAll = findViewById<MaterialButton>(R.id.btnDownloadAll)
+
         for ((code, name) in langNames) {
             val tv = TextView(this).apply {
-                text = "$name: 🔄 Checking..."
+                text = "$name: Checking..."
                 setPadding(0, 8, 0, 8)
             }
             statusViews[code] = tv
-            layout.addView(tv)
+            layoutModelsContainer.addView(tv)
         }
 
-        val btnDownloadAll = Button(this).apply {
-            text = "Download All Missing Models"
-            setOnClickListener {
-                downloadAllMissingModels(statusViews)
-            }
+        btnDownloadAll.setOnClickListener {
+            downloadAllMissingModels()
         }
-        layout.addView(btnDownloadAll)
 
-        checkModelStatuses(statusViews)
-
-        // Spacer
-        layout.addView(android.view.View(this).apply { layoutParams = LinearLayout.LayoutParams(1, 48) })
-
-        // Permission: Overlay
-        val btnOverlay = Button(this).apply {
-            text = "Grant Overlay Permission"
-            setOnClickListener {
-                if (!Settings.canDrawOverlays(this@MainActivity)) {
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:$packageName")
-                    )
-                    startActivity(intent)
-                } else {
-                    Toast.makeText(this@MainActivity, "Overlay already granted", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-        layout.addView(btnOverlay)
-
-        // Permission: Accessibility
-        val btnAccessibility = Button(this).apply {
-            text = "Enable Accessibility Service"
-            setOnClickListener {
-                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                startActivity(intent)
-            }
-        }
-        layout.addView(btnAccessibility)
-
-        // Start Capture Service
-        val btnStart = Button(this).apply {
-            text = "Start Screen Translation Service"
-            setOnClickListener {
-                startScreenCapture()
-            }
-        }
-        layout.addView(btnStart)
-
-        setContentView(scrollView)
+        checkModelStatuses()
     }
 
-    private fun checkModelStatuses(statusViews: Map<String, TextView>) {
+    private fun checkModelStatuses() {
         val client = ModuleInstall.getClient(this)
         for ((code, recognizer) in recognizers) {
             client.areModulesAvailable(recognizer).addOnSuccessListener { response ->
                 val isInstalled = response.areModulesAvailable()
                 config.setModelInstalled(code, isInstalled)
-                val status = if (isInstalled) "🟢 Installed" else "🔴 Not Installed"
+                val status = if (isInstalled) "Installed" else "Not Installed"
                 statusViews[code]?.text = "${langNames[code]}: $status"
             }.addOnFailureListener {
                 config.setModelInstalled(code, false)
-                statusViews[code]?.text = "${langNames[code]}: ❓ Error checking"
+                statusViews[code]?.text = "${langNames[code]}: Error checking"
             }
         }
     }
 
-    private fun downloadAllMissingModels(statusViews: Map<String, TextView>) {
+    private fun downloadAllMissingModels() {
         val client = ModuleInstall.getClient(this)
         Toast.makeText(this, "Checking & downloading models in background...", Toast.LENGTH_SHORT).show()
         
         for ((code, recognizer) in recognizers) {
             client.areModulesAvailable(recognizer).addOnSuccessListener { response ->
                 if (!response.areModulesAvailable()) {
-                    statusViews[code]?.text = "${langNames[code]}: ⏳ Downloading via Play Services..."
+                    statusViews[code]?.text = "${langNames[code]}: Downloading via Play Services..."
                     val request = ModuleInstallRequest.newBuilder().addApi(recognizer).build()
                     client.installModules(request).addOnSuccessListener {
                         config.setModelInstalled(code, true)
-                        statusViews[code]?.text = "${langNames[code]}: 🟢 Installed"
+                        statusViews[code]?.text = "${langNames[code]}: Installed"
                     }.addOnFailureListener {
                         config.setModelInstalled(code, false)
-                        statusViews[code]?.text = "${langNames[code]}: ❌ Download Failed"
+                        statusViews[code]?.text = "${langNames[code]}: Download Failed"
                     }
                 }
             }
+        }
+    }
+
+    private fun setupPermissionsAndStart() {
+        findViewById<MaterialButton>(R.id.btnOverlayPermission).setOnClickListener {
+            if (!Settings.canDrawOverlays(this)) {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+                startActivity(intent)
+            } else {
+                Toast.makeText(this, "Overlay already granted", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        findViewById<MaterialButton>(R.id.btnAccessibilityPermission).setOnClickListener {
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            startActivity(intent)
+        }
+
+        findViewById<ExtendedFloatingActionButton>(R.id.fabStartService).setOnClickListener {
+            startScreenCapture()
         }
     }
 

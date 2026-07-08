@@ -57,7 +57,12 @@ class ScreenCaptureService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val resultCode = intent?.getIntExtra("resultCode", Activity.RESULT_CANCELED) ?: Activity.RESULT_CANCELED
-        val data: Intent? = intent?.getParcelableExtra("data")
+        val data: Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra("data", Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra("data")
+        }
         
         if (resultCode == Activity.RESULT_OK && data != null) {
             mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -71,11 +76,23 @@ class ScreenCaptureService : Service() {
     private fun setupVirtualDisplay() {
         val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val metrics = DisplayMetrics()
-        windowManager.defaultDisplay.getRealMetrics(metrics)
         
-        val width = metrics.widthPixels
-        val height = metrics.heightPixels
-        val density = metrics.densityDpi
+        val width: Int
+        val height: Int
+        val density: Int
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val windowMetrics = windowManager.currentWindowMetrics
+            width = windowMetrics.bounds.width()
+            height = windowMetrics.bounds.height()
+            density = resources.configuration.densityDpi
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getRealMetrics(metrics)
+            width = metrics.widthPixels
+            height = metrics.heightPixels
+            density = metrics.densityDpi
+        }
 
         imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         

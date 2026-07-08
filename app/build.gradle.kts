@@ -38,6 +38,7 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
     
     // ML Kit Language Identification
     implementation("com.google.mlkit:language-id:17.0.4")
