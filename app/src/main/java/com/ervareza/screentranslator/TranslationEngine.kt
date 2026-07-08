@@ -22,32 +22,51 @@ class TranslationEngine(private val context: Context) {
     private val config = ConfigManager(context)
     private val languageIdentifier = LanguageIdentification.getClient()
     
-    // OCR Clients
-    private val jpRecognizer = TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
-    private val krRecognizer = TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
-    private val cnRecognizer = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
-    private val devRecognizer = TextRecognition.getClient(DevanagariTextRecognizerOptions.Builder().build())
-    private val enRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    private fun getRecognizer(code: String): com.google.mlkit.vision.text.TextRecognizer {
+        return when (code) {
+            "ja" -> TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
+            "ko" -> TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
+            "zh" -> TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+            "hi" -> TextRecognition.getClient(DevanagariTextRecognizerOptions.Builder().build())
+            else -> TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        }
+    }
 
     fun processImage(bitmap: Bitmap) {
         val image = InputImage.fromBitmap(bitmap, 0)
-
-        // Sangat lengkap fallback chain: JP -> KR -> CN -> DEV -> Latin
-        jpRecognizer.process(image).addOnSuccessListener { text ->
-            if (text.text.isNotBlank()) identifyAndTranslate(text)
-            else krRecognizer.process(image).addOnSuccessListener { krText ->
-                if (krText.text.isNotBlank()) identifyAndTranslate(krText)
-                else cnRecognizer.process(image).addOnSuccessListener { cnText ->
-                    if (cnText.text.isNotBlank()) identifyAndTranslate(cnText)
-                    else devRecognizer.process(image).addOnSuccessListener { devText ->
-                        if (devText.text.isNotBlank()) identifyAndTranslate(devText)
-                        else enRecognizer.process(image).addOnSuccessListener { enText ->
-                            if (enText.text.isNotBlank()) identifyAndTranslate(enText)
-                        }
-                    }
-                }
+        
+        if (config.sourceLanguage == "auto") {
+            val supportedCodes = listOf("ja", "ko", "zh", "hi", "en")
+            val installedCodes = supportedCodes.filter { config.isModelInstalled(it) }
+            
+            if (installedCodes.isEmpty()) {
+                Log.e("Translator", "Auto-detect failed: No OCR models are installed!")
+                return
             }
-        }.addOnFailureListener { e -> Log.e("Translator", "OCR Failed", e) }
+            runFallbackChain(image, installedCodes, 0)
+        } else {
+            val recognizer = getRecognizer(config.sourceLanguage)
+            recognizer.process(image).addOnSuccessListener { text ->
+                if (text.text.isNotBlank()) identifyAndTranslate(text)
+            }.addOnFailureListener { e -> 
+                Log.e("Translator", "OCR Failed, possibly downloading thin model via Play Services", e)
+            }
+        }
+    }
+
+    private fun runFallbackChain(image: InputImage, codes: List<String>, index: Int) {
+        if (index >= codes.size) return
+        
+        val recognizer = getRecognizer(codes[index])
+        recognizer.process(image).addOnSuccessListener { text ->
+            if (text.text.isNotBlank()) {
+                identifyAndTranslate(text)
+            } else {
+                runFallbackChain(image, codes, index + 1)
+            }
+        }.addOnFailureListener {
+            runFallbackChain(image, codes, index + 1)
+        }
     }
 
     private fun identifyAndTranslate(visionText: Text) {
