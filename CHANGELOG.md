@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v1.0.4] - 2026-07-08
+### Fixed
+- Fix crash (IllegalStateException) saat start service di Android 14 dan Android 15.
+- Menambahkan registrasi `MediaProjection.Callback` yang diwajibkan OS terbaru sebelum memulai screen capture.
+
 ## [v1.0.3] - 2026-07-08
 ### Added
 - "Stop" action button di Foreground Notification untuk mematikan service langsung dari notifikasi.

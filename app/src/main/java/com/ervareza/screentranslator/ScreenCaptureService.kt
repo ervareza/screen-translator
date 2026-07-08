@@ -96,6 +96,19 @@ class ScreenCaptureService : Service() {
         if (resultCode == Activity.RESULT_OK && data != null) {
             mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data)
+            
+            // FIX: Android 14+ requires registering a callback before createVirtualDisplay
+            mediaProjection?.registerCallback(object : android.media.projection.MediaProjection.Callback() {
+                override fun onStop() {
+                    super.onStop()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                    val stopBroadcast = Intent("com.ervareza.screentranslator.SERVICE_STOPPED")
+                    stopBroadcast.setPackage(packageName)
+                    sendBroadcast(stopBroadcast)
+                }
+            }, android.os.Handler(android.os.Looper.getMainLooper()))
+            
             setupVirtualDisplay()
         }
         
