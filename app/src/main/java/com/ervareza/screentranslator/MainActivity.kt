@@ -82,6 +82,7 @@ class MainActivity : AppCompatActivity() {
         screenCaptureLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()
         ) { result ->
+            fabStart.isEnabled = true
             if (result.resultCode == Activity.RESULT_OK && result.data != null) {
                 val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
                     putExtra("resultCode", result.resultCode)
@@ -90,7 +91,6 @@ class MainActivity : AppCompatActivity() {
                 startForegroundService(serviceIntent)
                 fabStart.text = "Service Running"
                 fabStart.setIconResource(android.R.drawable.ic_media_pause)
-                fabStart.isEnabled = false
                 Snackbar.make(fabStart, "Service started! You can close this app.", Snackbar.LENGTH_LONG).show()
             } else {
                 Snackbar.make(fabStart, "Screen capture permission denied.", Snackbar.LENGTH_LONG).show()
@@ -519,7 +519,19 @@ class MainActivity : AppCompatActivity() {
                 Snackbar.make(fabStart, "Please enable accessibility service first.", Snackbar.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            startScreenCapture()
+            if (isServiceRunning(ScreenCaptureService::class.java)) {
+                val stopIntent = Intent("com.ervareza.screentranslator.ACTION_STOP")
+                sendBroadcast(stopIntent)
+            } else {
+                fabStart.isEnabled = false // Prevent double clicks
+                val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                try {
+                    screenCaptureLauncher.launch(mgr.createScreenCaptureIntent())
+                } catch (e: Exception) {
+                    fabStart.isEnabled = true
+                    Snackbar.make(fabStart, "Failed to request screen capture", Snackbar.LENGTH_SHORT).show()
+                }
+            }
         }
         refreshPermissionStatuses()
     }

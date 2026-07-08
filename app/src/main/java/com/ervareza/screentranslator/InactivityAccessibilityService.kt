@@ -41,12 +41,15 @@ class InactivityAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // Guard: do nothing if service is not fully initialized yet
-        if (!serviceReady || config == null) return
+        if (!serviceReady || config == null || event == null) return
 
-        if (event?.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
-            event?.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+        // Ignore events from our own app so we don't clear overlays when we add them
+        if (event.packageName == "com.ervareza.screentranslator") return
+
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             
-            // Clear current overlays immediately upon movement
+            // Clear current overlays immediately upon movement or app switch
             val clearIntent = Intent("com.ervareza.screentranslator.CLEAR_OVERLAY")
             clearIntent.setPackage("com.ervareza.screentranslator")
             sendBroadcast(clearIntent)
