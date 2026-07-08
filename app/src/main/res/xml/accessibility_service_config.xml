@@ -3,5 +3,6 @@
     android:accessibilityEventTypes="typeViewScrolled|typeWindowContentChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagDefault"
-    android:canRetrieveWindowContent="true"
+    android:notificationTimeout="500"
+    android:canRetrieveWindowContent="false"
     android:description="@string/accessibility_service_description" />

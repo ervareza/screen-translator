@@ -1,7 +1,6 @@
 package com.ervareza.screentranslator
 
 import android.Manifest
-import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -12,7 +11,6 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
-import android.view.accessibility.AccessibilityManager
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.LinearLayout
@@ -390,11 +388,13 @@ class MainActivity : AppCompatActivity() {
 
     // ==================== PERMISSIONS ====================
     private fun isAccessibilityServiceEnabled(): Boolean {
-        val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val enabled = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-        return enabled.any { it.resolveInfo.serviceInfo.let { si ->
-            si.packageName == packageName && si.name == InactivityAccessibilityService::class.java.name
-        }}
+        // Use Settings.Secure for reliable detection
+        val expectedId = "$packageName/${InactivityAccessibilityService::class.java.name}"
+        val enabledServices = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        return enabledServices.split(':').any { it.equals(expectedId, ignoreCase = true) }
     }
 
     private fun isNotificationPermissionGranted(): Boolean {
