@@ -52,6 +52,36 @@ class MainActivity : Activity() {
         layout.addView(delayLabel)
         layout.addView(delaySlider)
 
+        // Target Language Spinner
+        val targetLangLabel = TextView(this).apply { 
+            text = "Target Language:" 
+            setPadding(0, 32, 0, 8)
+        }
+        layout.addView(targetLangLabel)
+
+        val spinner = android.widget.Spinner(this)
+        val langCodes = com.google.mlkit.nl.translate.TranslateLanguage.getAllLanguages()
+        val langNames = langCodes.map { java.util.Locale(it).displayLanguage }
+
+        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, langNames)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
+
+        // Set current selection based on config
+        val currentIndex = langCodes.indexOf(config.targetLanguage)
+        if (currentIndex >= 0) spinner.setSelection(currentIndex)
+
+        spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                config.targetLanguage = langCodes[position]
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        layout.addView(spinner)
+        
+        // Spacer
+        layout.addView(android.view.View(this).apply { layoutParams = LinearLayout.LayoutParams(1, 32) })
+
         // Permission: Overlay
         val btnOverlay = Button(this).apply {
             text = "Grant Overlay Permission"

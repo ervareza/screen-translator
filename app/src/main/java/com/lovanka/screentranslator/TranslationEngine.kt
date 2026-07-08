@@ -11,6 +11,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
+import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -25,30 +26,28 @@ class TranslationEngine(private val context: Context) {
     private val jpRecognizer = TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
     private val krRecognizer = TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
     private val cnRecognizer = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+    private val devRecognizer = TextRecognition.getClient(DevanagariTextRecognizerOptions.Builder().build())
     private val enRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     fun processImage(bitmap: Bitmap) {
         val image = InputImage.fromBitmap(bitmap, 0)
 
-        // For true auto-detect, we can run the most common manga languages
-        // In a real production app, we might run them in parallel and use Language ID to pick the best.
-        // For efficiency in this MVP, we will try Japanese first (most common for manga),
-        // then Korean if Japanese fails to find meaningful text.
-        
-        jpRecognizer.process(image)
-            .addOnSuccessListener { text ->
-                if (text.text.isNotBlank()) {
-                    identifyAndTranslate(text)
-                } else {
-                    // Try Korean if Japanese found nothing
-                    krRecognizer.process(image).addOnSuccessListener { krText ->
-                        if (krText.text.isNotBlank()) identifyAndTranslate(krText)
+        // Sangat lengkap fallback chain: JP -> KR -> CN -> DEV -> Latin
+        jpRecognizer.process(image).addOnSuccessListener { text ->
+            if (text.text.isNotBlank()) identifyAndTranslate(text)
+            else krRecognizer.process(image).addOnSuccessListener { krText ->
+                if (krText.text.isNotBlank()) identifyAndTranslate(krText)
+                else cnRecognizer.process(image).addOnSuccessListener { cnText ->
+                    if (cnText.text.isNotBlank()) identifyAndTranslate(cnText)
+                    else devRecognizer.process(image).addOnSuccessListener { devText ->
+                        if (devText.text.isNotBlank()) identifyAndTranslate(devText)
+                        else enRecognizer.process(image).addOnSuccessListener { enText ->
+                            if (enText.text.isNotBlank()) identifyAndTranslate(enText)
+                        }
                     }
                 }
             }
-            .addOnFailureListener { e ->
-                Log.e("Translator", "OCR Failed", e)
-            }
+        }.addOnFailureListener { e -> Log.e("Translator", "OCR Failed", e) }
     }
 
     private fun identifyAndTranslate(visionText: Text) {
