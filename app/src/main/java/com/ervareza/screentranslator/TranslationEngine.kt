@@ -1,4 +1,4 @@
-package com.lovanka.screentranslator
+package com.ervareza.screentranslator
 
 import android.content.Context
 import android.graphics.Bitmap

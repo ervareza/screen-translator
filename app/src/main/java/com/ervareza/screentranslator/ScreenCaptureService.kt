@@ -1,4 +1,4 @@
-package com.lovanka.screentranslator
+package com.ervareza.screentranslator
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -47,7 +47,7 @@ class ScreenCaptureService : Service() {
         translationEngine = TranslationEngine(this)
         
         // Register broadcast receiver for the Accessibility Service trigger
-        val filter = IntentFilter("com.lovanka.screentranslator.TRIGGER_CAPTURE")
+        val filter = IntentFilter("com.ervareza.screentranslator.TRIGGER_CAPTURE")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(captureReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {

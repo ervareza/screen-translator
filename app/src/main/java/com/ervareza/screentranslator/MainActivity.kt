@@ -1,4 +1,4 @@
-package com.lovanka.screentranslator
+package com.ervareza.screentranslator
 
 import android.app.Activity
 import android.content.Context

@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.lovanka.screentranslator"
+    namespace = "com.ervareza.screentranslator"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.lovanka.screentranslator"
+        applicationId = "com.ervareza.screentranslator"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

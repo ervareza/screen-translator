@@ -1,4 +1,4 @@
-package com.lovanka.screentranslator
+package com.ervareza.screentranslator
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
@@ -14,7 +14,7 @@ class InactivityAccessibilityService : AccessibilityService() {
     private val triggerTranslationRunnable = Runnable {
         Log.d("Translator", "Inactivity detected. Triggering translation...")
         // Broadcast to ScreenCaptureService
-        val intent = Intent("com.lovanka.screentranslator.TRIGGER_CAPTURE")
+        val intent = Intent("com.ervareza.screentranslator.TRIGGER_CAPTURE")
         sendBroadcast(intent)
     }
 
