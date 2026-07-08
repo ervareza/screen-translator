@@ -33,6 +33,14 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output.outputFileName = "Screen-Translator-v${variant.versionName}.apk"
+        }
+    }
 }
 
 dependencies {
