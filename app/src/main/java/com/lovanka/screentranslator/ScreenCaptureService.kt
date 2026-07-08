@@ -1,0 +1,132 @@
+package com.lovanka.screentranslator
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.Bitmap
+import android.graphics.PixelFormat
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import android.media.ImageReader
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
+import android.os.Build
+import android.os.IBinder
+import android.util.DisplayMetrics
+import android.view.WindowManager
+import androidx.core.app.NotificationCompat
+import android.util.Log
+import android.app.Activity
+
+class ScreenCaptureService : Service() {
+
+    private lateinit var mediaProjectionManager: MediaProjectionManager
+    private var mediaProjection: MediaProjection? = null
+    private var virtualDisplay: VirtualDisplay? = null
+    private var imageReader: ImageReader? = null
+    private lateinit var translationEngine: TranslationEngine
+
+    private val captureReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            captureScreen()
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+        startForeground(1, NotificationCompat.Builder(this, "ScreenTranslatorChannel")
+            .setContentTitle("Screen Translator Active")
+            .setContentText("Monitoring screen for translations...")
+            .build())
+            
+        translationEngine = TranslationEngine(this)
+        
+        // Register broadcast receiver for the Accessibility Service trigger
+        val filter = IntentFilter("com.lovanka.screentranslator.TRIGGER_CAPTURE")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(captureReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(captureReceiver, filter)
+        }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val resultCode = intent?.getIntExtra("resultCode", Activity.RESULT_CANCELED) ?: Activity.RESULT_CANCELED
+        val data: Intent? = intent?.getParcelableExtra("data")
+        
+        if (resultCode == Activity.RESULT_OK && data != null) {
+            mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data)
+            setupVirtualDisplay()
+        }
+        
+        return START_NOT_STICKY
+    }
+
+    private fun setupVirtualDisplay() {
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val metrics = DisplayMetrics()
+        windowManager.defaultDisplay.getRealMetrics(metrics)
+        
+        val width = metrics.widthPixels
+        val height = metrics.heightPixels
+        val density = metrics.densityDpi
+
+        imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+        
+        virtualDisplay = mediaProjection?.createVirtualDisplay(
+            "ScreenTranslatorCapture",
+            width, height, density,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            imageReader?.surface, null, null
+        )
+    }
+
+    private fun captureScreen() {
+        Log.d("Translator", "Capturing screen...")
+        val image = imageReader?.acquireLatestImage()
+        if (image != null) {
+            val planes = image.planes
+            val buffer = planes[0].buffer
+            val pixelStride = planes[0].pixelStride
+            val rowStride = planes[0].rowStride
+            val rowPadding = rowStride - pixelStride * image.width
+
+            val bitmap = Bitmap.createBitmap(
+                image.width + rowPadding / pixelStride,
+                image.height, Bitmap.Config.ARGB_8888
+            )
+            bitmap.copyPixelsFromBuffer(buffer)
+            
+            // Pass to Translation Engine
+            translationEngine.processImage(bitmap)
+            
+            image.close()
+        }
+    }
+
+    private fun createNotificationChannel() {
+        val channel = NotificationChannel(
+            "ScreenTranslatorChannel",
+            "Screen Translator Service",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(channel)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(captureReceiver)
+        virtualDisplay?.release()
+        mediaProjection?.stop()
+        imageReader?.close()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+}

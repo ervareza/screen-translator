@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Screen Translator</string>
+    <string name="accessibility_service_description">Service ini memantau aktivitas layar (seperti scroll) untuk menerjemahkan teks jika layar diam selama beberapa detik.</string>
+</resources>
