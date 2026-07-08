@@ -110,9 +110,24 @@ class MainActivity : AppCompatActivity() {
         setupPermissionsAndStart()
     }
 
+    private val serviceStopReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.ervareza.screentranslator.SERVICE_STOPPED") {
+                refreshPermissionStatuses()
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         refreshPermissionStatuses()
+
+        val filter = android.content.IntentFilter("com.ervareza.screentranslator.SERVICE_STOPPED")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(serviceStopReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(serviceStopReceiver, filter)
+        }
 
         // ISSUE-006 FIX: Sync FAB with actual service state
         if (isServiceRunning(ScreenCaptureService::class.java)) {
@@ -120,6 +135,13 @@ class MainActivity : AppCompatActivity() {
             fabStart.setIconResource(android.R.drawable.ic_media_pause)
             fabStart.isEnabled = false
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try {
+            unregisterReceiver(serviceStopReceiver)
+        } catch (e: Exception) {}
     }
 
     @Suppress("DEPRECATION")

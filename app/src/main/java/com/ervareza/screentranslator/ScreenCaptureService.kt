@@ -39,12 +39,6 @@ class ScreenCaptureService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(1, NotificationCompat.Builder(this, "ScreenTranslatorChannel")
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Screen Translator Active")
-            .setContentText("Monitoring screen for translations...")
-            .build())
-            
         translationEngine = TranslationEngine(this)
         
         // Register broadcast receiver for the Accessibility Service trigger
@@ -57,6 +51,40 @@ class ScreenCaptureService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "ACTION_STOP") {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            
+            // Notify MainActivity to update FAB UI
+            val stopBroadcast = Intent("com.ervareza.screentranslator.SERVICE_STOPPED")
+            stopBroadcast.setPackage(packageName)
+            sendBroadcast(stopBroadcast)
+            
+            return START_NOT_STICKY
+        }
+
+        val stopIntent = Intent(this, ScreenCaptureService::class.java).apply {
+            action = "ACTION_STOP"
+        }
+        val stopPendingIntent = android.app.PendingIntent.getService(
+            this, 0, stopIntent, 
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val notification = NotificationCompat.Builder(this, "ScreenTranslatorChannel")
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("Screen Translator Active")
+            .setContentText("Monitoring screen for translations...")
+            .setOngoing(true)
+            .addAction(android.R.drawable.ic_media_pause, "Stop", stopPendingIntent)
+            .build()
+            
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        } else {
+            startForeground(1, notification)
+        }
+
         val resultCode = intent?.getIntExtra("resultCode", Activity.RESULT_CANCELED) ?: Activity.RESULT_CANCELED
         val data: Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra("data", Intent::class.java)
